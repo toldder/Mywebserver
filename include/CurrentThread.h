@@ -9,8 +9,9 @@ namespace CurrentThread
 	void cacheTid();
 	inline int tid()
 	{
-		if (__builtin_expect(t_cachedTid == 0, 0)) // __builtin_expect 是一种底层优化 此语句意思是如果还未获取tid 进入if 通过cacheTid()系统调用获取tid
+		if (__builtin_expect(t_cachedTid == 0, 0)) 
 		{
+			// __builtin_expect 是一种底层优化 此语句意思是如果还未获取tid 进入if 通过cacheTid()系统调用获取tid
 			cacheTid();
 		}
 		return t_cachedTid;

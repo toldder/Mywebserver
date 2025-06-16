@@ -7,6 +7,7 @@ namespace CurrentThread
     {
         if (t_cachedTid == 0)
         {
+            // gettid返回的是内核级的线程ID，全局唯一
             t_cachedTid = static_cast<pid_t>(::syscall(SYS_gettid)); // Ensure syscall and SYS_gettid are defined
         }
     }

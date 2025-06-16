@@ -21,7 +21,7 @@ const int PollTimeMs = 10000; //单位是毫秒
 //通过eventfd在线程之间传递数据的好处是多个线程无需上锁就可以实现同步
 int createEventfd()
 {
-	int evtf = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);//设置文件描述符为非阻塞模式，在执行exec()时自动关闭文件描述符
+	int evtf = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);//EFD_CLOEXEC设置文件描述符为非阻塞模式，在执行exec()时自动关闭文件描述符
 	if (evtf < 0)
 	{
 		LOG_FATAL << "eventfd eroor:%d" << errno;
@@ -59,7 +59,7 @@ void EventLoop::loop()
 	looping_ = true;
 	quit_ = false;
 
-	LOG_INFO << " EventLoop start looping";
+	LOG_INFO << " EventLoop start looping!";
 	while (!quit_)
 	{
 		activeChannels_.clear();
@@ -102,15 +102,23 @@ void EventLoop::runInLoop(Functor cb)
 
 }
 
+// 将回调函数cb安全地添加到事件循环的任务队列中，并在必要时唤醒事件循环线程去执行
 void EventLoop::queueInLoop(Functor cb)
 {
 	{
-		std::unique_lock<std::mutex>lock(mutex_);
+		std::unique_lock<std::mutex>lock(mutex_); //确保能够插入到队列中，因为vector中的操作并不是原子操作
 		pendingFunctors_.emplace_back(cb);
 	}
 
-	//callingPendingFunctors的意思是 当前Loop正在执行回溯中，但是loop的pendingFunctors_又加入了新的回调
-	//需要wakeup写事件，唤醒相应的需要执行上面回调操作的loop的线程，让loop()下一次poller_->poll不在阻塞，
+	/**
+	 * 判断是否需要唤醒事件循环线程
+	 * 1. !isInLoopThread，如果当前调用queueInLoop的线程不是EventLoop所属线程
+	 *	此时必须唤醒EventLoop线程，否则新加入的回调可能无法及时执行，因为EventLoop可能正阻塞在poll等待IO事件
+	 * 2. callingPendingFunctors_,当前正在执行队列中的其他回调函数，如果不唤醒
+	 *	则新加入的回调会延迟到下一次poll之后才执行(可能造成延迟)
+	 *  */
+	 //callingPendingFunctors的意思是 当前Loop正在执行回溯中，但是loop的pendingFunctors_又加入了新的回调
+	//需要wakeup写事件，唤醒相应的执行回调操作的loop所在的线程，让loop()下一次poller_->poll不在阻塞，
 	//阻塞的话会延迟前一次新加入的回调的执行，然后继续执行pendingFunctors_中的回调函数
 	if (!isInLoopThread() || callingPendingFunctors_)
 	{
@@ -118,10 +126,17 @@ void EventLoop::queueInLoop(Functor cb)
 	}
 }
 
+/**
+ * wakeupFd_的工作流程：
+ * 1.其他线程调用EventLoop::wakeup()时，会向wakeupFd_写入一个字节数据(如EventFd+1);
+ * 2. 事件触发：Poller监听到wakeupFd_的可读事件，使阻塞在poll/epoll的EventLoop线程返回
+ * 3. 清楚状态：EventLoop线程通过read读取wakeupFd_中的数据，重置其状态，避免重复触发
+ */
+
 void EventLoop::handleRead()
 {
 	uint64_t one = 1;
-	ssize_t n = read(wakeupFd_, &one, sizeof(one));
+	ssize_t n = read(wakeupFd_, &one, sizeof(one)); // 返回实际读取到的字节数量，one存储从wakeFd_读取到的数据
 	if (n != sizeof(one))
 	{
 		LOG_ERROR << "EventLoop:handleRead() reads " << n << "bytes instead of 8";
@@ -132,14 +147,14 @@ void EventLoop::handleRead()
 void EventLoop::wakeup()
 {
 	uint64_t one = 1;
-	ssize_t n = write(wakeupFd_, &one, sizeof(one));
+	ssize_t n = write(wakeupFd_, &one, sizeof(one)); // 写入数据，出发wakeupFd_的可读事件
 	if (n != sizeof(one))
 	{
 		LOG_ERROR << " EventLoop::wakeup() writes " << n << " bytes instead of 8";
 	}
 }
 
-//EventLoop的方法=》Poller的方法
+//EventLoop的方法 =》Poller的方法
 void EventLoop::updateChannel(Channel* channel)
 {
 	poller_->updateChannel(channel);

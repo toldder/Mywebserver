@@ -21,10 +21,10 @@ static int createNonblocking()
 Acceptor::Acceptor(EventLoop* loop, const InetAddress& listenAddr, bool reuseport)
     :loop_(loop),acceptSocket_(createNonblocking()),acceptChannel_(loop_,acceptSocket_.fd()),islistenning_(false)
 {
-    acceptSocket_.setReuseAddr(true);
-    acceptSocket_.setReusePort(true);
-    acceptSocket_.bindAddress(listenAddr);
-    acceptChannel_.setReadCallback(std::bind(&Acceptor::handleRead, this));
+    acceptSocket_.setReuseAddr(true); // 释放后是否能够立即被使用
+    acceptSocket_.setReusePort(reuseport); 
+    acceptSocket_.bindAddress(listenAddr); // 服务端绑定端口号
+    acceptChannel_.setReadCallback(std::bind(&Acceptor::handleRead, this)); // 设置回调函数
 }
 
 Acceptor::~Acceptor()

@@ -9,6 +9,7 @@ class Channel;
 class EventLoop;
 
 //多路事件分发器的核心IO复用模块，负责监听文件描述符事件
+// 抽象类，拥有updateChannel,poll,removeChannel三个纯虚函数
 class Poller
 {
 public:

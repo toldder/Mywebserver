@@ -5,17 +5,19 @@
 #include <memory>
 
 #include "noncopyable.h"
-#include "Timestamp.h"
 
+
+class Timestamp;
 class EventLoop;
 
 //Channel将文件描述符和该文件描述符对应的回调函数绑定在了一起。
 //封装文件描述符和fd感兴趣事件、实际发生事件。并提供注册、移除、保存回调函数的方法。
-
 class Channel :noncopyable
 {
 public:
-    using EventCallback = std::function<void()>;//文件描述符对应的回调函数
+    // 分别表示Channel未添加到Poller,已经添加到Poller,从Poller中删除
+    enum ChannelStatus { CHANNEL_NEW, CHANNEL_ADD, CHANNEL_DEL };
+    using EventCallback = std::function<void()>; //文件描述符对应的回调函数
     using ReadEventCallback = std::function<void(Timestamp)>;
     Channel(EventLoop* loop, int fd);
     ~Channel();
@@ -35,8 +37,8 @@ public:
     int fd()const { return fd_; }
     int events()const { return events_; }
     void set_revents(int revt) { revents_ = revt; }
-    int index() { return index_; }
-    void set_index(int idx) { index_ = idx; }
+    ChannelStatus index() { return index_; }
+    void set_index(ChannelStatus idx) { index_ = idx; }
 
 
     //设置事件状态,类似epoll_ctl函数
@@ -62,7 +64,7 @@ private:
     int events_; //感兴趣的事件
     int revents_;//注册fd实际发生事件
     EventLoop* loop_; //fd属于哪个EventLoop对象
-    int index_; //为-1表示channel还没有添加到Poller,1表示已经添加，2表示已经删除
+    ChannelStatus index_; //为-1表示channel还没有添加到Poller,1表示已经添加，2表示已经删除
 
     //发生的事件类型,通常分为四类，读、写、连接关闭、发生错误
     ReadEventCallback readCallback_;
@@ -74,7 +76,7 @@ private:
     static const int ReadEvent;
     static const int WriteEvent;
 
-    std::weak_ptr<void> tie_;  //
+    std::weak_ptr<void> tie_;  
     bool tied_;
 };
 

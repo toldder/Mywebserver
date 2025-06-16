@@ -1,7 +1,7 @@
 #include <cstring>
 #include "FileUtil.h"
-
-FileUtil::FileUtil(std::string &file_name) : file_(::fopen(file_name.c_str(), "ae")),
+// a表示append追加，e是unix的特有行为，确保文件描述符在exec系列函数调用时自动关闭(防止子进程继承该文件描述符)
+FileUtil::FileUtil(std::string &file_name) : file_(::fopen(file_name.c_str(), "ae")), 
                                              writtenBytes_(0)
 {
     // 将file_缓冲区设置为本地缓冲降低io次数。
@@ -46,5 +46,7 @@ void FileUtil::flush()
 size_t FileUtil::write(const char *data, size_t len)
 {
     // 没用选择线程安全的fwrite()为性能考虑。
-   return  ::fwrite_unlocked(data, 1, len, file_);
+    // ptr指向要写入数据的内存地址，size表示每个数据项的大小，n表示写入的数据项数量
+    // stream表示目标文件流
+    return  ::fwrite_unlocked(data, 1, len, file_);
 }
