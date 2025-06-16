@@ -1,0 +1,9 @@
+# 生成文件
+build/
+#文本文件
+*.txt
+# 抓包文件
+*.pcap
+# 图片
+*.png
+.vscode
